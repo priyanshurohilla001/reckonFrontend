@@ -20,14 +20,6 @@ export const registerUser = async (req, res) => {
     const validatedData = result.data;
     const { name, age, gender, course, email, phoneNumber, password, college, tags, otp } = validatedData;
 
-    // Verify OTP
-    const otpRecord = await OTP.findOne({ email, otp, isVerified: false });
-    if (!otpRecord) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP or OTP expired',
-      });
-    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ 
@@ -58,12 +50,8 @@ export const registerUser = async (req, res) => {
     });
 
     await newUser.save();
-    
-    // Mark OTP as verified
-    otpRecord.isVerified = true;
-    await otpRecord.save();
+  
 
-    // Generate JWT token
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email },
       process.env.JWT_SECRET,
