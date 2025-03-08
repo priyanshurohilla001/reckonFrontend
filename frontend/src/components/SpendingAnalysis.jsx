@@ -158,6 +158,12 @@ export function SpendingAnalysis({ balance = 3244, spendingData }) {
                 {renderPieChart()}
               </div>
               
+              {/* Graph Image */}
+              <div className="bg-muted/30 rounded-md p-4">
+                <h4 className="text-sm font-medium mb-3">Detailed Spending Graph</h4>
+                <img src="/src/assets/image.png" alt="Spending Trends Graph" className="w-full h-auto rounded-md" />
+              </div>
+              
               <div className="text-xs text-muted-foreground text-center">
                 Go to Spending Details tab for a breakdown of your spending habits
               </div>
