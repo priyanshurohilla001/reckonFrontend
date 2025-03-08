@@ -101,7 +101,7 @@ export default function Login() {
             <Button
               variant="ghost"
               size="icon"
-              className="mr-2"
+              className="mr-2 text-indigo-600"
               onClick={() => navigate("/")}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -166,7 +166,7 @@ export default function Login() {
           <CardFooter className="flex flex-col space-y-4">
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700" 
               disabled={isLoading}
             >
               {isLoading ? (
