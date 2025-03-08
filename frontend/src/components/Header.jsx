@@ -1,23 +1,23 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Wallet, Plus } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Wallet, Plus } from "lucide-react";
 
 export function Header({ userData }) {
   return (
-    <div className="w-full px-4 py-2 flex justify-between items-center border-b">
-      <div className="flex items-center gap-2">
-        <Avatar>
-          <AvatarImage src={userData?.profileImage} />
-          <AvatarFallback>{userData?.name?.[0]}</AvatarFallback>
-        </Avatar>
+    <header className="w-full bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+      <Avatar className="h-10 w-10">
+        <AvatarImage src={userData?.profileImage} />
+        <AvatarFallback>{userData?.name?.[0]}</AvatarFallback>
+      </Avatar>
+      <div className="flex items-center gap-3">
         <div className="flex items-center gap-1">
-          <Wallet className="h-4 w-4" />
-          <span>₹{userData?.money || 0}</span>
+          <Wallet className="h-6 w-6 font-bold text-primary" />
+          <span className="text-xl font-semibold">₹{userData?.money || 0}</span>
         </div>
+        <Button size="icon" variant="ghost">
+          <Plus className="h-6 w-6" />
+        </Button>
       </div>
-      <Button size="icon" variant="ghost">
-        <Plus className="h-4 w-4" />
-      </Button>
-    </div>
-  )
+    </header>
+  );
 }

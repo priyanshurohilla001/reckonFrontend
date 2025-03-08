@@ -2,32 +2,54 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { Header } from "@/components/Header"
 import { CategoryCard } from "@/components/CategoryCard"
+import axios from 'axios'
 
 const categories = [
   "Food", "Entertainment", "Tuition", "Rent", "Shopping",
   "Travel", "Healthcare", "Utilities", "Miscellaneous", "Subscriptions"
 ]
 
+// Configure axios
+const api = axios.create({
+  baseURL: import.meta.env.VITE_SERVER_URL
+})
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 export default function App() {
   const [userData, setUserData] = useState(null)
 
   useEffect(() => {
-    const data = {
-      name: "Priyanshu",
-      age: 25,
-      gender: "Male",
-      course: "Computer Science",
-      email: "2023kucp1065@iiitkota.ac.in",
-      PhoneNum: "7015170512",
-      Password: "password123",
-      college: {
-      name: "IIIT KOTA",
-      id: "12345"
-      },
-      Tags: ["student", "developer"],
-      money: 1000
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (token) {
+          const { data } = await api.get('/api/user')
+          setUserData(data)
+        } else {
+          setUserData({
+            name: "Priyanshu",
+            money: 1000,
+            profileImage: ""
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error)
+        setUserData({
+          name: "Priyanshu",
+          money: 1000,
+          profileImage: ""
+        })
+      }
     }
-    setUserData(data);
+
+    fetchUserData()
   }, [])
 
   return (
@@ -38,19 +60,19 @@ export default function App() {
           <Routes>
             <Route path="/" element={
               <>
-                <div className="mb-8">
+                <section className="mb-8">
                   <h2 className="text-2xl font-bold mb-4">Analysis</h2>
                   <p className="text-muted-foreground">Graphs coming soon...</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                </section>
+                <section className="space-y-4">
                   {categories.map(category => (
                     <CategoryCard key={category} category={category} />
                   ))}
-                </div>
+                </section>
               </>
             } />
             <Route path="/category/:category" element={
-              <div>Category details coming soon...</div>
+              <div className="text-center mt-8 text-xl">Category details coming soon...</div>
             } />
           </Routes>
         </main>
@@ -58,5 +80,3 @@ export default function App() {
     </Router>
   )
 }
-
-
