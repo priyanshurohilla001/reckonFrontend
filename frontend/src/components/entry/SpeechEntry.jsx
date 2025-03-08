@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { EntryForm } from "./EntryForm";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function SpeechEntry({ onSuccess }) {
   const [isRecording, setIsRecording] = useState(false);
@@ -16,28 +18,42 @@ export function SpeechEntry({ onSuccess }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
-  
+  const streamRef = useRef(null);
+
   // Clean up recording resources on component unmount
   useEffect(() => {
     return () => {
-      if (mediaRecorderRef.current) {
-        if (mediaRecorderRef.current.state === "recording") {
-          mediaRecorderRef.current.stop();
-        }
-      }
+      stopMediaTracks();
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
   }, []);
 
+  // Properly stop and clean up media tracks
+  const stopMediaTracks = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  };
+
   const startRecording = async () => {
     try {
+      // Reset any previous recording state
+      setAudioBlob(null);
+      audioChunksRef.current = [];
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -46,11 +62,13 @@ export function SpeechEntry({ onSuccess }) {
       };
       
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          setAudioBlob(audioBlob);
+        }
         
         // Release microphone
-        stream.getTracks().forEach(track => track.stop());
+        stopMediaTracks();
       };
       
       // Start recording
@@ -59,6 +77,9 @@ export function SpeechEntry({ onSuccess }) {
       
       // Set up timer
       setRecordingTime(0);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
@@ -72,32 +93,40 @@ export function SpeechEntry({ onSuccess }) {
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      
-      // Clear timer
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+    }
+    
+    setIsRecording(false);
+    
+    // Clear timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
     }
   };
 
   const cancelRecording = () => {
+    // Stop recording if active
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
     }
     
+    // Reset state
     setIsRecording(false);
     setAudioBlob(null);
-    setFormData(null);
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
       setRecordingTime(0);
     }
+    
+    // Clean up media resources
+    stopMediaTracks();
   };
 
   const processAudio = async () => {
-    if (!audioBlob) return;
+    if (!audioBlob) {
+      toast.error("No recording to process.");
+      return;
+    }
     
     setIsProcessing(true);
     
@@ -146,86 +175,154 @@ export function SpeechEntry({ onSuccess }) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  return (
-    <Card className="w-full border-0 shadow-none">
-      <CardContent className="p-0">
-        {formData ? (
-          <EntryForm 
-            prefilledData={formData} 
-            onSuccess={onSuccess}
-            onCancel={() => {
-              setFormData(null);
-              setAudioBlob(null);
+  // Render waveform animation only during recording
+  const renderWaveform = () => {
+    if (!isRecording) return null;
+    
+    return (
+      <div className="flex items-center justify-center gap-1 h-8 my-3">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <motion.div
+            key={i}
+            className="w-1 bg-red-500 rounded-full"
+            animate={{
+              height: [15, Math.random() * 20 + 10, 15],
+            }}
+            transition={{
+              duration: 0.5 + Math.random() * 0.3,
+              repeat: Infinity,
+              repeatType: "reverse",
             }}
           />
-        ) : (
-          <div className="flex flex-col items-center justify-center py-6 space-y-8">
-            {audioBlob && !isProcessing ? (
-              <div className="w-full space-y-4">
-                <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
-                <div className="flex gap-3 justify-center">
-                  <Button variant="outline" onClick={cancelRecording}>
-                    Cancel
-                  </Button>
-                  <Button onClick={processAudio}>
-                    Process Speech
-                  </Button>
-                </div>
-              </div>
-            ) : isProcessing ? (
-              <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p>Processing your speech...</p>
-              </div>
-            ) : (
-              <>
-                <div 
-                  className={`
-                    w-24 h-24 rounded-full flex items-center justify-center 
-                    transition-all duration-200
-                    ${isRecording 
-                      ? 'bg-red-100 animate-pulse' 
-                      : 'bg-primary/10'
-                    }
-                  `}
-                >
-                  {isRecording ? (
-                    <Square className="h-10 w-10 text-red-500" />
-                  ) : (
-                    <Mic className="h-10 w-10 text-primary" />
-                  )}
-                </div>
-                
-                {isRecording ? (
-                  <div className="text-center space-y-2">
-                    <p className="text-2xl font-mono">{formatTime(recordingTime)}</p>
-                    <p className="text-sm text-red-500 animate-pulse">Recording...</p>
-                    <Button 
-                      variant="destructive" 
-                      size="lg"
-                      className="mt-4"
-                      onClick={stopRecording}
-                    >
-                      Stop Recording
-                    </Button>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="w-full border border-border/30 shadow-sm">
+      <CardContent className="p-6">
+        <AnimatePresence mode="wait">
+          {formData ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              key="form"
+            >
+              <EntryForm 
+                prefilledData={formData} 
+                onSuccess={onSuccess}
+                onCancel={() => {
+                  setFormData(null);
+                  setAudioBlob(null);
+                }}
+              />
+            </motion.div>
+          ) : (
+            <motion.div 
+              className="flex flex-col items-center justify-center py-4 space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              key="recorder"
+            >
+              {audioBlob && !isProcessing ? (
+                <div className="w-full space-y-6">
+                  <div className="bg-secondary/30 rounded-xl p-6 flex items-center justify-center">
+                    <p className="text-lg font-medium text-foreground/80">Recording complete!</p>
                   </div>
-                ) : (
-                  <div className="text-center space-y-2">
-                    <p>Tap to record your expense</p>
+                  <div className="flex flex-col gap-3 items-center">
+                    <Button 
+                      onClick={processAudio}
+                      className="w-full bg-primary hover:bg-primary/90"
+                    >
+                      Process Speech
+                    </Button>
                     <Button 
                       variant="outline" 
-                      size="lg"
-                      className="mt-4"
-                      onClick={startRecording}
+                      onClick={cancelRecording}
+                      className="w-full"
                     >
-                      Start Recording
+                      Record Again
                     </Button>
                   </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                </div>
+              ) : isProcessing ? (
+                <div className="flex flex-col items-center gap-4 py-10">
+                  <motion.div 
+                    className="text-primary"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Loader2 className="h-12 w-12" />
+                  </motion.div>
+                  <p className="text-lg font-medium text-foreground/80">Processing your speech...</p>
+                </div>
+              ) : (
+                <>
+                  <motion.div 
+                    className={cn(
+                      "relative w-28 h-28 rounded-full flex items-center justify-center shadow-sm",
+                      isRecording ? "bg-red-500/10" : "bg-primary/10"
+                    )}
+                    animate={isRecording ? {
+                      scale: [1, 1.05, 1],
+                      boxShadow: [
+                        "0 0 0 0 rgba(220, 38, 38, 0.1)",
+                        "0 0 0 15px rgba(220, 38, 38, 0)",
+                      ],
+                    } : {}}
+                    transition={{ duration: 2, repeat: isRecording ? Infinity : 0 }}
+                  >
+                    {isRecording ? (
+                      <Square className="h-10 w-10 text-red-500" />
+                    ) : (
+                      <Mic className="h-10 w-10 text-primary" />
+                    )}
+                    {isRecording && (
+                      <motion.div
+                        className="absolute -inset-1 rounded-full border-2 border-red-500/30"
+                        animate={{ scale: [1, 1.2, 1], opacity: [1, 0.6, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      />
+                    )}
+                  </motion.div>
+                  
+                  {renderWaveform()}
+                  
+                  {isRecording ? (
+                    <div className="text-center space-y-2">
+                      <p className="text-3xl font-mono font-bold text-foreground">{formatTime(recordingTime)}</p>
+                      <p className="text-sm text-red-500 font-medium">Recording...</p>
+                      <Button 
+                        variant="destructive" 
+                        size="lg"
+                        className="mt-6 px-8"
+                        onClick={stopRecording}
+                      >
+                        Stop Recording
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <p className="text-lg text-foreground/80 font-medium">Tap to record your expense</p>
+                      <Button 
+                        variant="outline" 
+                        size="lg"
+                        className="mt-4 bg-primary/5 border-primary/20 hover:bg-primary/10 px-8"
+                        onClick={startRecording}
+                      >
+                        <Mic className="mr-2 h-4 w-4" />
+                        Start Recording
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardContent>
     </Card>
   );

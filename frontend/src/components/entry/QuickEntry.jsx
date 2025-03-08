@@ -1,28 +1,57 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PresetAmountButton } from "./PresetAmountButton";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { Check, Plus } from "lucide-react";
+import "@/components/ui/scrollbar-hide.css";
+
+// Complete set of categories
+const categoryOptions = [
+  { id: "food", name: "Food", emoji: "🍔" },
+  { id: "shopping", name: "Shopping", emoji: "🛍️" },
+  { id: "transportation", name: "Transport", emoji: "🚗" },
+  { id: "entertainment", name: "Fun", emoji: "🎬" },
+  { id: "utilities", name: "Bills", emoji: "💡" },
+  { id: "health", name: "Health", emoji: "💊" },
+  { id: "education", name: "Education", emoji: "📚" },
+  { id: "personal", name: "Personal", emoji: "👤" },
+  { id: "travel", name: "Travel", emoji: "✈️" },
+  { id: "housing", name: "Housing", emoji: "🏠" },
+  { id: "miscellaneous", name: "Misc", emoji: "📦" }
+];
+
+// Common tags
+const commonTags = ["groceries", "lunch", "dinner", "coffee", "taxi", "bills", "rent", "snacks", "drinks"];
 
 export function QuickEntry({ onSuccess }) {
-  const navigate = useNavigate();
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("miscellaneous");
+  const [selectedTags, setSelectedTags] = useState([]);
 
+  // Small preset amounts for tab-like buttons
   const presetAmounts = [20, 50, 100, 200, 500, 1000];
   
   const handlePresetAmount = (value) => {
-    setAmount(value);
+    setAmount(value.toString());
   };
 
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    
+  const handleCategorySelect = (categoryId) => {
+    setSelectedCategory(categoryId);
+  };
+
+  const toggleTag = (tag) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
@@ -32,18 +61,16 @@ export function QuickEntry({ onSuccess }) {
 
     try {
       const currentDate = new Date().toISOString();
+      const categoryName = categoryOptions.find(c => c.id === selectedCategory)?.name || "Miscellaneous";
       
-      // Create the payload for quick entry
-      // It will go into the Miscellaneous category by default
       const payload = {
-        title: `Quick entry - ₹${amount}`,
+        title: `Quick ${categoryName.toLowerCase()} expense`,
         amount: parseFloat(amount),
-        category: "miscellaneous",
+        category: selectedCategory,
         date: currentDate,
-        description: `Quick entry made on ${new Date().toLocaleDateString()}`
+        tags: selectedTags
       };
       
-      // Make API request
       await axios.post(
         `${import.meta.env.VITE_SERVER_URL}/api/entries/quick`,
         payload,
@@ -56,8 +83,8 @@ export function QuickEntry({ onSuccess }) {
       
       toast.success(`₹${amount} added successfully!`);
       setAmount("");
+      setSelectedTags([]);
       
-      // Notify parent component of success
       if (onSuccess) onSuccess();
       
     } catch (error) {
@@ -70,57 +97,102 @@ export function QuickEntry({ onSuccess }) {
   };
 
   return (
-    <Card className="w-full border-0 shadow-none">
-      <CardContent className="p-0">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-lg">Enter Amount (₹)</Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Enter amount"
-              className="text-lg py-6"
-              autoFocus
-            />
-          </div>
-          
-          <Tabs defaultValue="common">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="common">Common Amounts</TabsTrigger>
-              <TabsTrigger value="custom">Custom Presets</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="common" className="mt-4">
-              <div className="grid grid-cols-3 gap-3">
-                {presetAmounts.map((presetAmount) => (
-                  <PresetAmountButton
-                    key={presetAmount}
-                    amount={presetAmount}
-                    onClick={handlePresetAmount}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="custom" className="mt-4">
-              <p className="text-center text-muted-foreground py-4">
-                Your custom presets will appear here once you create them.
-              </p>
-            </TabsContent>
-          </Tabs>
-        </form>
-      </CardContent>
+    <div className="space-y-4">
+      {/* Amount Input and Quick Selectors - Made more prominent */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-base font-medium">Amount</span>
+          <span className="text-lg font-semibold text-primary">₹{amount || "0"}</span>
+        </div>
+        
+        {/* Custom amount input - Made larger */}
+        <Input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Enter amount"
+          className="h-12 text-lg font-medium"
+        />
+        
+        {/* Tab-like amount selectors - Made more prominent */}
+        <div className="grid grid-cols-3 gap-2">
+          {presetAmounts.map((presetAmount) => (
+            <Button
+              key={presetAmount}
+              type="button"
+              variant="outline"
+              className={cn(
+                "h-10 text-base",
+                amount === presetAmount.toString() && "bg-primary/10 border-primary text-primary font-medium"
+              )}
+              onClick={() => handlePresetAmount(presetAmount)}
+            >
+              ₹{presetAmount}
+            </Button>
+          ))}
+        </div>
+      </div>
       
-      <CardFooter className="flex justify-end gap-2 pt-6 px-0">
-        <Button 
-          onClick={handleSubmit}
-          disabled={isLoading || !amount}
-        >
-          {isLoading ? "Saving..." : "Save Entry"}
-        </Button>
-      </CardFooter>
-    </Card>
+      {/* Categories - Redesigned as horizontal tabs */}
+      <div className="space-y-2">
+        <span className="text-sm font-medium">Category</span>
+        <div className="flex gap-1 overflow-x-auto pb-1 snap-x scrollbar-hide">
+          {categoryOptions.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => handleCategorySelect(category.id)}
+              className={cn(
+                "flex items-center gap-1 py-1.5 px-3 rounded-full border whitespace-nowrap snap-start",
+                selectedCategory === category.id ? 
+                  "border-primary bg-primary/10 text-primary" : 
+                  "border-border hover:bg-accent"
+              )}
+            >
+              <span>{category.emoji}</span>
+              <span className="text-xs font-medium">{category.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Tags */}
+      <div className="space-y-2">
+        <span className="text-sm font-medium">Tags</span>
+        <div className="flex flex-wrap gap-1.5">
+          {commonTags.map((tag) => (
+            <Badge
+              key={tag}
+              variant={selectedTags.includes(tag) ? "default" : "outline"}
+              className={cn(
+                "text-xs py-1 px-2.5 capitalize cursor-pointer",
+                selectedTags.includes(tag) ? 
+                  "bg-primary/20 hover:bg-primary/30 text-primary border-primary" : 
+                  "hover:bg-accent"
+              )}
+              onClick={() => toggleTag(tag)}
+            >
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      </div>
+      
+      {/* Submit Button - Made larger and more prominent */}
+      <Button 
+        onClick={handleSubmit}
+        disabled={isLoading || !amount}
+        className="w-full h-12 mt-2 text-base font-medium"
+      >
+        {isLoading ? (
+          "Adding..."
+        ) : (
+          <div className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            <span>Add Expense</span>
+          </div>
+        )}
+      </Button>
+    </div>
   );
 }
