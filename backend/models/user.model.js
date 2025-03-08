@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     phoneNumber: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    college: { type: mongoose.Schema.Types.ObjectId, ref: "College", required: true },
+    college: { type: String, required: true }, // Changed from ObjectId to String
     tags: [{ type: String }],
     money: { type: Number, default: 0 }
 });
