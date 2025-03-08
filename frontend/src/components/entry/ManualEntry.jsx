@@ -1,14 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { EntryForm } from "./EntryForm";
 
-export function ManualEntry() {
+export function ManualEntry({ onSuccess }) {
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">Manual Entry</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <EntryForm />
+    <Card className="w-full border-0 shadow-none">
+      <CardContent className="p-0">
+        <EntryForm onSuccess={onSuccess} />
       </CardContent>
     </Card>
   );

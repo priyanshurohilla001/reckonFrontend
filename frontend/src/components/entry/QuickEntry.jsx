@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PresetAmountButton } from "./PresetAmountButton";
 
-export function QuickEntry() {
+export function QuickEntry({ onSuccess }) {
   const navigate = useNavigate();
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +21,7 @@ export function QuickEntry() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       toast.error("Please enter a valid amount");
@@ -55,7 +55,10 @@ export function QuickEntry() {
       );
       
       toast.success(`₹${amount} added successfully!`);
-      navigate("/");
+      setAmount("");
+      
+      // Notify parent component of success
+      if (onSuccess) onSuccess();
       
     } catch (error) {
       console.error("Error adding quick entry:", error);
@@ -67,12 +70,8 @@ export function QuickEntry() {
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">Quick Entry</CardTitle>
-      </CardHeader>
-      
-      <CardContent>
+    <Card className="w-full border-0 shadow-none">
+      <CardContent className="p-0">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="amount" className="text-lg">Enter Amount (₹)</Label>
@@ -114,10 +113,7 @@ export function QuickEntry() {
         </form>
       </CardContent>
       
-      <CardFooter className="flex justify-end gap-2 pt-2">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          Cancel
-        </Button>
+      <CardFooter className="flex justify-end gap-2 pt-6 px-0">
         <Button 
           onClick={handleSubmit}
           disabled={isLoading || !amount}

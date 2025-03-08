@@ -5,11 +5,6 @@ import { CategoryCard } from "@/components/CategoryCard"
 import { Toaster } from "sonner"
 import axios from 'axios'
 
-// Import entry pages
-import AddQuickEntry from "@/pages/AddEntry/AddQuickEntry"
-import AddSpeechEntry from "@/pages/AddEntry/AddSpeechEntry"
-import AddManualEntry from "@/pages/AddEntry/AddManualEntry"
-
 const categories = [
   "Food", "Entertainment", "Tuition", "Rent", "Shopping",
   "Travel", "Healthcare", "Utilities", "Miscellaneous", "Subscriptions"
@@ -80,11 +75,6 @@ export default function App() {
             <Route path="/category/:category" element={
               <div className="text-center mt-8 text-xl">Category details coming soon...</div>
             } />
-            
-            {/* New routes for entry types */}
-            <Route path="/add/quick" element={<AddQuickEntry />} />
-            <Route path="/add/speech" element={<AddSpeechEntry />} />
-            <Route path="/add/manual" element={<AddManualEntry />} />
           </Routes>
         </main>
         <Toaster position="top-center" />

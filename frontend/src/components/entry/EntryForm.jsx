@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,8 +18,7 @@ const categories = [
   "Travel", "Healthcare", "Utilities", "Miscellaneous", "Subscriptions"
 ];
 
-export function EntryForm({ prefilledData = {} }) {
-  const navigate = useNavigate();
+export function EntryForm({ prefilledData = {}, onSuccess, onCancel }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -75,7 +73,11 @@ export function EntryForm({ prefilledData = {} }) {
       );
       
       toast.success("Entry added successfully!");
-      navigate("/");
+      
+      // Call the success callback if provided
+      if (onSuccess) {
+        onSuccess();
+      }
       
     } catch (error) {
       console.error("Error adding entry:", error);
@@ -167,10 +169,12 @@ export function EntryForm({ prefilledData = {} }) {
         />
       </div>
 
-      <div className="pt-4 flex gap-2">
-        <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-          Cancel
-        </Button>
+      <div className="pt-4 flex gap-2 justify-end">
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
         <Button type="submit" disabled={isLoading}>
           {isLoading ? "Saving..." : "Save Entry"}
         </Button>

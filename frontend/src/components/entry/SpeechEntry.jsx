@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { EntryForm } from "./EntryForm";
 
-export function SpeechEntry() {
+export function SpeechEntry({ onSuccess }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
@@ -118,16 +118,6 @@ export function SpeechEntry() {
         }
       );
       
-      // Expected response from server:
-      // {
-      //   title: string,
-      //   amount: number,
-      //   category: string,
-      //   description: string,
-      //   date: string (ISO date),
-      //   tags: string[]
-      // }
-      
       if (response.data) {
         // Format tags as comma-separated string for the form
         const tagsString = response.data.tags?.join(', ') || '';
@@ -157,16 +147,19 @@ export function SpeechEntry() {
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">Speech Entry</CardTitle>
-      </CardHeader>
-      
-      <CardContent>
+    <Card className="w-full border-0 shadow-none">
+      <CardContent className="p-0">
         {formData ? (
-          <EntryForm prefilledData={formData} />
+          <EntryForm 
+            prefilledData={formData} 
+            onSuccess={onSuccess}
+            onCancel={() => {
+              setFormData(null);
+              setAudioBlob(null);
+            }}
+          />
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 space-y-8">
+          <div className="flex flex-col items-center justify-center py-6 space-y-8">
             {audioBlob && !isProcessing ? (
               <div className="w-full space-y-4">
                 <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
