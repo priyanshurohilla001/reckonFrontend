@@ -1,14 +1,12 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { Header } from "@/components/Header"
-import { CategoryCard } from "@/components/CategoryCard"
 import { Toaster } from "sonner"
 import axios from 'axios'
-
-const categories = [
-  "Food", "Entertainment", "Tuition", "Rent", "Shopping",
-  "Travel", "Healthcare", "Utilities", "Miscellaneous", "Subscriptions"
-]
+import Homepage from "@/pages/Homepage"
+import Login from "@/pages/Login"
+import Register from "@/pages/Register"
+import Dashboard from "@/pages/Dashboard"
+import { useAuth } from "@/hooks/useAuth" // We'll create this hook
 
 // Configure axios
 const api = axios.create({
@@ -23,60 +21,44 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+  
+  return children;
+};
+
 export default function App() {
-  const [userData, setUserData] = useState(null)
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const token = localStorage.getItem('token')
-        if (token) {
-          const { data } = await api.get('/api/user')
-          setUserData(data)
-        } else {
-          setUserData({
-            name: "Priyanshu",
-            money: 1000,
-            profileImage: ""
-          })
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error)
-        setUserData({
-          name: "Priyanshu",
-          money: 1000,
-          profileImage: ""
-        })
-      }
-    }
-
-    fetchUserData()
-  }, [])
-
   return (
     <Router>
       <div className="min-h-screen bg-background">
-        <Header userData={userData} />
-        <main className="container mx-auto px-4 py-6">
-          <Routes>
-            <Route path="/" element={
-              <>
-                <section className="mb-8">
-                  <h2 className="text-2xl font-bold mb-4">Analysis</h2>
-                  <p className="text-muted-foreground">Graphs coming soon...</p>
-                </section>
-                <section className="space-y-4">
-                  {categories.map(category => (
-                    <CategoryCard key={category} category={category} />
-                  ))}
-                </section>
-              </>
-            } />
-            <Route path="/category/:category" element={
-              <div className="text-center mt-8 text-xl">Category details coming soon...</div>
-            } />
-          </Routes>
-        </main>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Homepage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          {/* Protected Routes */}
+          <Route 
+            path="/dashboard/*" 
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Fallback route */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
         <Toaster position="top-center" />
       </div>
     </Router>
