@@ -1,101 +1,130 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import axios from "axios";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { entryService } from "@/services/api";
-import { Loader2 } from "lucide-react";
-
-const QUICK_AMOUNTS = [20, 50, 100, 200, 500, 1000];
+import { PresetAmountButton } from "./PresetAmountButton";
 
 export function QuickEntry() {
-  const [amount, setAmount] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const [amount, setAmount] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleQuickAmountClick = async (quickAmount) => {
-    try {
-      setIsSubmitting(true);
-      await entryService.createQuickEntry(quickAmount);
-      navigate("/");
-    } catch (error) {
-      console.error("Error creating quick entry:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const presetAmounts = [20, 50, 100, 200, 500, 1000];
+  
+  const handlePresetAmount = (value) => {
+    setAmount(value);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) return;
     
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    
+    setIsLoading(true);
+
     try {
-      setIsSubmitting(true);
-      await entryService.createQuickEntry(parseFloat(amount));
+      const currentDate = new Date().toISOString();
+      
+      // Create the payload for quick entry
+      // It will go into the Miscellaneous category by default
+      const payload = {
+        title: `Quick entry - ₹${amount}`,
+        amount: parseFloat(amount),
+        category: "miscellaneous",
+        date: currentDate,
+        description: `Quick entry made on ${new Date().toLocaleDateString()}`
+      };
+      
+      // Make API request
+      await axios.post(
+        `${import.meta.env.VITE_SERVER_URL}/api/entries/quick`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      
+      toast.success(`₹${amount} added successfully!`);
       navigate("/");
+      
     } catch (error) {
-      console.error("Error creating quick entry:", error);
+      console.error("Error adding quick entry:", error);
+      const errorMessage = error.response?.data?.message || "Failed to add entry";
+      toast.error(errorMessage);
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-xl text-center">Quick Entry</CardTitle>
+        <CardTitle className="text-xl font-bold">Quick Entry</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <div className="bg-muted p-2 rounded-md">$</div>
+      
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="amount" className="text-lg">Enter Amount (₹)</Label>
             <Input
+              id="amount"
               type="number"
-              placeholder="Enter amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="text-lg"
-              min="0"
-              step="0.01"
-              required
-              disabled={isSubmitting}
+              placeholder="Enter amount"
+              className="text-lg py-6"
+              autoFocus
             />
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
-            </Button>
           </div>
+          
+          <Tabs defaultValue="common">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="common">Common Amounts</TabsTrigger>
+              <TabsTrigger value="custom">Custom Presets</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="common" className="mt-4">
+              <div className="grid grid-cols-3 gap-3">
+                {presetAmounts.map((presetAmount) => (
+                  <PresetAmountButton
+                    key={presetAmount}
+                    amount={presetAmount}
+                    onClick={handlePresetAmount}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="custom" className="mt-4">
+              <p className="text-center text-muted-foreground py-4">
+                Your custom presets will appear here once you create them.
+              </p>
+            </TabsContent>
+          </Tabs>
         </form>
-
-        <div className="pt-2">
-          <p className="text-sm text-muted-foreground mb-2">Common amounts</p>
-          <div className="grid grid-cols-3 gap-2">
-            {QUICK_AMOUNTS.map((quickAmount) => (
-              <motion.div
-                key={quickAmount}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleQuickAmountClick(quickAmount)}
-                  disabled={isSubmitting}
-                >
-                  ${quickAmount}
-                </Button>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        <div className="pt-2 text-center">
-          <p className="text-xs text-muted-foreground">
-            Quick entries are added to the Miscellaneous category
-          </p>
-        </div>
       </CardContent>
+      
+      <CardFooter className="flex justify-end gap-2 pt-2">
+        <Button variant="outline" onClick={() => navigate(-1)}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleSubmit}
+          disabled={isLoading || !amount}
+        >
+          {isLoading ? "Saving..." : "Save Entry"}
+        </Button>
+      </CardFooter>
     </Card>
   );
 }

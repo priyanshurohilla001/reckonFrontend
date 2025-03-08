@@ -1,200 +1,238 @@
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import axios from "axios";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mic, MicOff, StopCircle, AlertCircle } from "lucide-react";
-import { entryService } from "@/services/api";
-import { EntryForm } from "@/components/entry/EntryForm";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Mic, Square, Loader2 } from "lucide-react";
+import { EntryForm } from "./EntryForm";
 
 export function SpeechEntry() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
-  const [audioUrl, setAudioUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [entryData, setEntryData] = useState(null);
+  const [formData, setFormData] = useState(null);
+  
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
-  const navigate = useNavigate();
-
-  // Cleanup function
+  
+  // Clean up recording resources on component unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [audioUrl]);
+  }, []);
 
   const startRecording = async () => {
     try {
-      setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
       
-      mediaRecorderRef.current.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
       
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
-        setAudioUrl(audioUrl);
-        audioChunksRef.current = [];
         
-        // Stop all tracks of the stream
+        // Release microphone
         stream.getTracks().forEach(track => track.stop());
       };
       
-      audioChunksRef.current = [];
-      mediaRecorderRef.current.start();
+      // Start recording
+      mediaRecorder.start();
       setIsRecording(true);
       
-      // Start timer
+      // Set up timer
       setRecordingTime(0);
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
-    } catch (err) {
-      console.error("Error starting recording:", err);
-      setError("Microphone access denied. Please allow microphone access and try again.");
+      
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      toast.error("Failed to access microphone. Please check permissions.");
     }
   };
-  
+
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       
-      // Stop timer
+      // Clear timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
-        timerRef.current = null;
       }
     }
   };
-  
-  const resetRecording = () => {
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    
+    setIsRecording(false);
     setAudioBlob(null);
-    setAudioUrl(null);
-    setError(null);
-    setEntryData(null);
+    setFormData(null);
+    
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      setRecordingTime(0);
+    }
   };
-  
+
   const processAudio = async () => {
     if (!audioBlob) return;
     
+    setIsProcessing(true);
+    
     try {
-      setIsProcessing(true);
-      setError(null);
+      // Create form data with audio file
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
       
-      const data = await entryService.processSpeechEntry(audioBlob);
-      setEntryData(data);
-    } catch (err) {
-      console.error("Error processing audio:", err);
-      setError("Failed to process audio. Please try again or use manual entry.");
+      // Send to server for processing
+      const response = await axios.post(
+        `${import.meta.env.VITE_SERVER_URL}/api/speech-to-text`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+      
+      // Expected response from server:
+      // {
+      //   title: string,
+      //   amount: number,
+      //   category: string,
+      //   description: string,
+      //   date: string (ISO date),
+      //   tags: string[]
+      // }
+      
+      if (response.data) {
+        // Format tags as comma-separated string for the form
+        const tagsString = response.data.tags?.join(', ') || '';
+        
+        // Set the form data from the response
+        setFormData({
+          ...response.data,
+          tags: tagsString
+        });
+        
+        toast.success("Speech processed successfully!");
+      }
+      
+    } catch (error) {
+      console.error("Error processing speech:", error);
+      const errorMessage = error.response?.data?.message || "Failed to process speech";
+      toast.error(errorMessage);
     } finally {
       setIsProcessing(false);
     }
   };
-  
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // If we have processed entry data, show the form
-  if (entryData) {
-    return <EntryForm initialData={entryData} />;
-  }
-
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-xl text-center">Speech Entry</CardTitle>
-        <CardDescription className="text-center">
-          Record your expense by speaking it out loud
-        </CardDescription>
+        <CardTitle className="text-xl font-bold">Speech Entry</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        <div className="flex flex-col items-center justify-center py-6">
-          {isRecording ? (
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              className="relative"
-            >
-              <div className="absolute inset-0 bg-red-500 rounded-full opacity-20 animate-ping" />
-              <Button
-                size="lg"
-                variant="destructive"
-                className="h-20 w-20 rounded-full"
-                onClick={stopRecording}
-              >
-                <StopCircle className="h-10 w-10" />
-              </Button>
-            </motion.div>
-          ) : (
-            <Button
-              size="lg"
-              variant={audioBlob ? "outline" : "default"}
-              className="h-20 w-20 rounded-full"
-              onClick={audioBlob ? resetRecording : startRecording}
-            >
-              {audioBlob ? <MicOff className="h-10 w-10" /> : <Mic className="h-10 w-10" />}
-            </Button>
-          )}
-          
-          <div className="mt-4 text-center">
-            {isRecording ? (
-              <div className="text-red-500 font-semibold animate-pulse">
-                Recording... {formatTime(recordingTime)}
+      
+      <CardContent>
+        {formData ? (
+          <EntryForm prefilledData={formData} />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 space-y-8">
+            {audioBlob && !isProcessing ? (
+              <div className="w-full space-y-4">
+                <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline" onClick={cancelRecording}>
+                    Cancel
+                  </Button>
+                  <Button onClick={processAudio}>
+                    Process Speech
+                  </Button>
+                </div>
               </div>
-            ) : audioBlob ? (
-              <div className="text-green-600 font-semibold">Recording complete</div>
+            ) : isProcessing ? (
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p>Processing your speech...</p>
+              </div>
             ) : (
-              <div className="text-muted-foreground">Tap to start recording</div>
+              <>
+                <div 
+                  className={`
+                    w-24 h-24 rounded-full flex items-center justify-center 
+                    transition-all duration-200
+                    ${isRecording 
+                      ? 'bg-red-100 animate-pulse' 
+                      : 'bg-primary/10'
+                    }
+                  `}
+                >
+                  {isRecording ? (
+                    <Square className="h-10 w-10 text-red-500" />
+                  ) : (
+                    <Mic className="h-10 w-10 text-primary" />
+                  )}
+                </div>
+                
+                {isRecording ? (
+                  <div className="text-center space-y-2">
+                    <p className="text-2xl font-mono">{formatTime(recordingTime)}</p>
+                    <p className="text-sm text-red-500 animate-pulse">Recording...</p>
+                    <Button 
+                      variant="destructive" 
+                      size="lg"
+                      className="mt-4"
+                      onClick={stopRecording}
+                    >
+                      Stop Recording
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-2">
+                    <p>Tap to record your expense</p>
+                    <Button 
+                      variant="outline" 
+                      size="lg"
+                      className="mt-4"
+                      onClick={startRecording}
+                    >
+                      Start Recording
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
-        </div>
-        
-        {audioUrl && (
-          <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-2">Preview your recording:</p>
-            <audio src={audioUrl} controls className="w-full" />
-          </div>
         )}
-        
-        <div className="flex justify-center space-x-4 pt-4">
-          <Button variant="outline" onClick={() => navigate("/")}>
-            Cancel
-          </Button>
-          
-          {audioBlob && (
-            <Button onClick={processAudio} disabled={isProcessing}>
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing
-                </>
-              ) : (
-                "Use This Recording"
-              )}
-            </Button>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
