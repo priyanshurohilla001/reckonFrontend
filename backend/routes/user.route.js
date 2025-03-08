@@ -1,14 +1,19 @@
 import express from 'express';
-import { registerUser } from '../controllers/user.controller.js';
+import { registerUser, loginUser, getUserProfile } from '../controllers/user.controller.js';
+import authUser from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
 // User registration route
 router.post('/register', registerUser);
 
+// User login route
+router.post('/login', loginUser);
+
+// User profile route
+router.get('/profile', authUser, getUserProfile);
+
 // Additional user routes can be added here
-// router.post('/login', loginUser);
-// router.get('/profile', authenticateToken, getUserProfile);
 // etc.
 
 export default router;
